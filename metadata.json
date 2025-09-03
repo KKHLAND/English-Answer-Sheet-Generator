@@ -1,0 +1,5 @@
+{
+  "name": "AI 영어 모의고사 해설지 생성기",
+  "description": "영어 모의고사 시험지를 PDF 파일로 업로드하여 특정 문항의 맞춤형 분석 자료를 만드세요.",
+  "requestFramePermissions": []
+}
