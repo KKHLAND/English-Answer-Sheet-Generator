@@ -467,7 +467,7 @@ button:disabled {
 
 .vocabulary-block {
     margin-top: 1rem;
-    font-size: 9pt;
+    font-size: 9.5pt;
     text-align: left;
 }
 
@@ -482,7 +482,7 @@ button:disabled {
 .vocabulary-block ul {
     list-style-type: none;
     padding-left: 1.5em;
-    line-height: 1.4;
+    line-height: 1.2;
 }
 
 .vocabulary-block li {
@@ -491,11 +491,15 @@ button:disabled {
 }
 
 .vocabulary-block li::before {
-    content: 'ㅁ';
-    font-family: sans-serif;
-    font-weight: bold;
-    font-size: 1.1em;
+    content: '';
+    display: inline-block;
+    width: 0.8em;
+    height: 0.8em;
+    border: 1px solid #555;
+    background-color: white;
     margin-right: 0.7em;
+    vertical-align: middle;
+    transform: translateY(-1px);
 }
 
 .analysis-content {

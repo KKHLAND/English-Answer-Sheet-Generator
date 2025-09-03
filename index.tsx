@@ -330,7 +330,7 @@ const AnalysisSheet: React.FC<AnalysisSheetProps> = ({ title, questionData, logo
         <div className="analysis-sheet">
             <div className="preview-header">
                 <span className="title">{displayTitle}</span>
-                <span className="info">학번 ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ) 이름 ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</span>
+                <span className="info">학번 ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ) 이름 ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</span>
             </div>
             <div className="preview-body">
                 <div className="question-main-content">
@@ -523,7 +523,7 @@ Schema Adherence: Adhere strictly to the provided JSON schema. Omit any optional
                     failedQuestions.push(qNum);
                 }
                 // Add delay to prevent rate limiting errors
-                await sleep(1200);
+                await sleep(2500);
             }
             
             if (isCancelledRef.current) {
