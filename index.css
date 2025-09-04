@@ -288,12 +288,12 @@ button:disabled {
 #preview-content {
     display: flex;
     flex-direction: column;
+    gap: 20px;
 }
 
 .analysis-sheet {
     background-color: white;
     width: 210mm; /* A4 width */
-    height: 297mm; /* A4 height */
     padding: 12mm;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
     display: flex;
@@ -302,10 +302,6 @@ button:disabled {
     line-height: 1.5;
     color: black;
     page-break-inside: avoid;
-}
-
-#preview-content .analysis-sheet:not(:first-child){
-     page-break-before: always;
 }
 
 .preview-header {
@@ -331,7 +327,6 @@ button:disabled {
     grid-template-columns: 2fr 1fr;
     gap: 1.25rem;
     flex-grow: 1;
-    overflow-y: hidden;
 }
 
 .preview-body pre {
@@ -401,29 +396,28 @@ button:disabled {
 
 .choice-header-40 span:first-child {
     grid-column: 2;
-    text-align: center;
+    text-align: left;
 }
 .choice-header-40 span:last-child {
     grid-column: 4;
-    text-align: center;
+    text-align: left;
 }
 
 .question-choices li.choice-item-40 {
     display: grid;
     grid-template-columns: 2em auto 1fr auto;
     gap: 0 0.5em;
-    align-items: baseline;
+    align-items: center;
     text-indent: 0;
     padding-left: 0;
 }
 
 .choice-item-40 .choice-part-a, .choice-item-40 .choice-part-b {
-    text-align: center;
+    text-align: left;
 }
 
 .choice-dots {
     border-bottom: 1px dotted #333;
-    margin-bottom: 4px;
 }
 
 .boxed-text {
@@ -482,11 +476,11 @@ button:disabled {
 .vocabulary-block ul {
     list-style-type: none;
     padding-left: 1.5em;
-    line-height: 1.2;
+    line-height: 1.15;
 }
 
 .vocabulary-block li {
-    margin-bottom: 0.1em;
+    margin-bottom: 0;
     text-indent: -1.5em;
 }
 
@@ -577,4 +571,42 @@ button:disabled {
         transform-origin: top center;
         margin-bottom: -148.5mm; /* (297 * (1 - 0.5)) */
     }
+}
+
+/* Styles for PDF Generation */
+body.pdf-generating {
+    /* During PDF generation, we want the body to expand */
+    height: auto;
+    overflow: visible;
+}
+
+body.pdf-generating .app-container {
+    /* Break the grid and height limit to allow content to expand */
+    display: block;
+    height: auto;
+}
+
+body.pdf-generating .controls-panel {
+    /* Hide the controls panel so only the preview is considered for layout */
+    display: none;
+}
+
+body.pdf-generating .preview-panel {
+    /* Ensure the preview panel itself doesn't scroll or clip content */
+    overflow: visible;
+    height: auto;
+    padding: 0;
+    background-color: transparent;
+    box-shadow: none; /* remove shadow for cleaner PDF */
+}
+
+body.pdf-generating .analysis-sheet {
+    transform: none !important;
+    margin: 0 !important;
+    box-shadow: none;
+    page-break-after: always;
+}
+
+body.pdf-generating #preview-content .analysis-sheet:last-child {
+    page-break-after: auto;
 }
