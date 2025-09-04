@@ -361,9 +361,8 @@ button:disabled {
 .answer-blank {
     display: inline-block;
     border-bottom: 1.2px solid black;
-    vertical-align: -0.2em; /* Adjust to align with text baseline */
+    vertical-align: -0.1em; /* Adjust to align with text baseline */
     margin: 0 0.1em;
-    max-width: 200px; /* Prevent oversized blanks from breaking justification */
 }
 .answer-blank-text {
     visibility: hidden;

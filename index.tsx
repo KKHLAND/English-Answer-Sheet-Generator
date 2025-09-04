@@ -274,7 +274,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
         const vocabWithStars = data.starredVocabulary
             .split('\n')
             .filter(line => line.trim() !== '')
-            .map(line => `* ${line.trim()}`)
+            .map((line, index) => `${'*'.repeat(index + 1)} ${line.trim()}`)
             .join('\n');
         return <pre className="starred-vocabulary">{vocabWithStars}</pre>;
     };
@@ -630,7 +630,7 @@ const App = () => {
     const previewRef = useRef<HTMLDivElement>(null);
     const isCancelledRef = useRef(false);
     
-    const allowedQuestions = useMemo(() => ['18', '19', '20', '21', '22', '23', '24', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41-42'], []);
+    const allowedQuestions = useMemo(() => ['18', '19', '20', '21', '22', '23', '24', '26', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41-42'], []);
 
     // Effect to convert logoFile to a data URL for stable PDF generation
     useEffect(() => {
@@ -710,7 +710,7 @@ const App = () => {
 
 **Question-Specific Formatting Rules:**
 
-- **Questions 18-24 (Purpose, Mood, Claim, etc.):**
+- **Questions 18-24, 26 (Purpose, Mood, Claim, etc.):**
   - The instructional sentence (e.g., "다음 글의 목적으로 가장 적절한 것은?") MUST go into the 'prompt' field.
   - The main body of text that follows the instruction MUST go into the 'passage' field. The 'passage' field MUST NOT be null for these questions.
 
@@ -991,6 +991,7 @@ const App = () => {
                     useCORS: true,
                     // Allow images from other origins to be drawn
                     allowTaint: true,
+                    backgroundColor: '#ffffff',
                 });
     
                 const imgData = canvas.toDataURL('image/jpeg', 0.98);
