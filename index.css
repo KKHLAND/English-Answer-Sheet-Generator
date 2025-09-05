@@ -359,14 +359,23 @@ button:disabled {
 }
 
 .answer-blank {
-    display: inline-block;
+    display: inline-block; /* Prevents the blank space from breaking across lines for better PDF rendering. */
     border-bottom: 1.2px solid black;
-    vertical-align: -0.1em; /* Adjust to align with text baseline */
+    vertical-align: -0.2em; /* Adjust for better visual alignment with inline text. */
     margin: 0 0.1em;
+    /* Add a max-width to prevent very long blanks from disrupting the justified text alignment, */
+    /* which causes large gaps between words. This keeps word spacing looking natural. */
+    max-width: 25ch;
 }
 .answer-blank-text {
+    /* 'visibility: hidden' makes text invisible but it still occupies space, defining the blank's width. */
     visibility: hidden;
+    user-select: none; /* Prevents users from selecting the invisible text. */
+    /* These properties ensure that if the answer text is longer than the parent's max-width, */
+    /* it is cleanly truncated without wrapping or breaking the layout. */
     white-space: nowrap;
+    overflow: hidden;
+    display: inline-block;
 }
 
 .starred-vocabulary-container {
@@ -600,6 +609,13 @@ button:disabled {
     text-align: justify;
     text-justify: inter-word;
     white-space: pre-line;
+}
+
+/* Custom underline style for consistent PDF rendering */
+.custom-underline {
+    border-bottom: 1.2px solid black;
+    padding-bottom: 1px; /* Adjust spacing between text and line */
+    text-decoration: none;
 }
 
 .preview-footer {

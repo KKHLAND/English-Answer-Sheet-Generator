@@ -142,6 +142,7 @@ interface QuestionData {
     translation: string;
     vocabulary: VocabularyItem[];
     subQuestions?: SubQuestion[];
+    numberedSentenceAnchors?: string[] | null; // For Q35's precise marker placement
 }
 
 
@@ -160,7 +161,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
             content = content.flatMap(segment =>
                 typeof segment === 'string' && segment.includes(data.promptEnglishPart!)
                     ? segment.split(data.promptEnglishPart!).flatMap((part, i, arr) =>
-                        i < arr.length - 1 ? [part, <u key={`en-${i}`}>{data.promptEnglishPart}</u>] : [part]
+                        i < arr.length - 1 ? [part, <span className="custom-underline" key={`en-${i}`}>{data.promptEnglishPart}</span>] : [part]
                     )
                     : [segment]
             );
@@ -172,7 +173,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
             content = content.flatMap(segment =>
                 typeof segment === 'string' && segment.includes(keyword)
                     ? segment.split(keyword).flatMap((part, i, arr) =>
-                        i < arr.length - 1 ? [part, <u key={`${keyword}-${i}`}>{keyword}</u>] : [part]
+                        i < arr.length - 1 ? [part, <span className="custom-underline" key={`${keyword}-${i}`}>{keyword}</span>] : [part]
                     )
                     : [segment]
             );
@@ -185,7 +186,18 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
         if (!data.passage) return null;
     
         let passageContent: any = data.passage;
+
+        // FIX: Proactively remove any mistaken __U__ markers from questions other than 29 and 30.
+        // This acts as a safeguard against the AI misapplying the formatting rule.
+        if (data.questionNumber !== '29' && data.questionNumber !== '30' && typeof passageContent === 'string') {
+            passageContent = passageContent.replace(/__U__/g, '');
+        }
     
+        // Clean up duplicated vocab from passage to prevent rendering errors.
+        if (data.starredVocabulary && typeof passageContent === 'string') {
+            passageContent = passageContent.replace(data.starredVocabulary, '').trim();
+        }
+
         // For Q32, 33, 34, dynamically size the blank based on the answer.
         if (['32', '33', '34'].includes(data.questionNumber) && typeof passageContent === 'string') {
             const blankRegex = /(_{5,})/;
@@ -219,7 +231,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
                             // Reconstruct with the marker and the underlined text.
                             return (
                                 <React.Fragment key={index}>
-                                    {marker} <u>{textToUnderline}</u>
+                                    {marker} <span className="custom-underline">{textToUnderline}</span>
                                 </React.Fragment>
                             );
                         }
@@ -237,12 +249,29 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
                     {parts.map((part, index) => {
                         // The word to underline is the 2nd captured group, which lands at index 2, 5, 8, etc.
                         if (index > 0 && index % 3 === 2) { 
-                            return <u key={index}>{part}</u>;
+                            return <span className="custom-underline" key={index}>{part}</span>;
                         }
                         return part;
                     })}
                 </>
             );
+        }
+        // For Q35, programmatically insert sentence markers for 100% accuracy by replacing AI-placed tags.
+        else if (data.questionNumber === '35' && typeof passageContent === 'string' && passageContent.includes('__MARKER_')) {
+            let contentWithMarkers: (string | JSX.Element)[] = [passageContent];
+            const markers = ['①', '②', '③', '④', '⑤'];
+
+            for (let i = 0; i < markers.length; i++) {
+                const markerTag = `__MARKER_${i + 1}__`;
+                contentWithMarkers = contentWithMarkers.flatMap(segment =>
+                    typeof segment === 'string' && segment.includes(markerTag)
+                        ? segment.split(markerTag).flatMap((part, j, arr) =>
+                            j < arr.length - 1 ? [part, <React.Fragment key={`${i}-${j}`}>{markers[i]}</React.Fragment>] : [part]
+                        )
+                        : [segment]
+                );
+            }
+            passageContent = <>{contentWithMarkers}</>;
         }
         // For underlined text. Handle Q21's potential AI artifact specifically.
         else if (data.underlinedText && typeof passageContent === 'string') {
@@ -259,7 +288,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
                 }
                 passageContent = (
                     <>
-                        {firstPart}<u>{cleanUnderlinedText}</u>{parts.slice(1).join(cleanUnderlinedText)}
+                        {firstPart}<span className="custom-underline">{cleanUnderlinedText}</span>{parts.slice(1).join(cleanUnderlinedText)}
                     </>
                 );
             }
@@ -283,8 +312,8 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
         if (!data.mainTextAfterBox || ['31', '32', '33', '34'].includes(data.questionNumber)) return null;
 
         let text = data.mainTextAfterBox;
-        // Clean up duplicated vocab from passage for Q36/37 before rendering.
-        if (['36', '37'].includes(data.questionNumber) && data.starredVocabulary) {
+        // Clean up duplicated vocab from main text for ALL questions before rendering.
+        if (data.starredVocabulary) {
             text = text.replace(data.starredVocabulary, '').trim();
         }
 
@@ -419,29 +448,35 @@ const AnalysisSheet: React.FC<AnalysisSheetProps> = ({ title, questionData, logo
     const displayTitle = title.replace('문제지', '해설지');
 
     const renderTranslation = () => {
-        const { translation } = questionData;
-
+        const { translation, questionNumber } = questionData;
+    
         if (!translation) return null;
-
-        // Generalize __ANSWER__ handling for any question that might use it
-        if (translation.includes('__ANSWER__')) {
-            // This regex splits the string by the markers, capturing the content between them.
-            const parts = translation.split(/__ANSWER__(.*?)__ANSWER__/);
-            
-            return (
-                <>
-                    {parts.map((part, index) => {
-                        // The content to be underlined is at odd indices.
-                        if (index % 2 === 1) {
-                            return <u key={index}>{part}</u>;
-                        }
-                        // The text before and after the markers is at even indices.
-                        return part;
-                    })}
-                </>
-            );
+    
+        // Define which questions are allowed to have underlining in their translation.
+        const allowedUnderlineQuestions = ['31', '32', '33', '34', '38', '39', '40', '41-42'];
+    
+        if (allowedUnderlineQuestions.includes(questionNumber)) {
+            if (translation.includes('__ANSWER__')) {
+                // This regex splits the string by the markers, capturing the content between them.
+                const parts = translation.split(/__ANSWER__(.*?)__ANSWER__/);
+                return (
+                    <>
+                        {parts.map((part, index) => {
+                            // The content to be underlined is at odd indices.
+                            if (index % 2 === 1) {
+                                return <span className="custom-underline" key={index}>{part}</span>;
+                            }
+                            // The text before and after the markers is at even indices.
+                            return part;
+                        })}
+                    </>
+                );
+            }
+            return translation; // Return as-is if no marker
+        } else {
+            // For all other questions, proactively remove any mistaken markers as a safeguard.
+            return translation.replace(/__ANSWER__/g, '');
         }
-        return translation;
     };
 
     const getVocabLimit = (questionNumber: string): number => {
@@ -609,6 +644,19 @@ function sanitizeAIResponse(data: { [key: string]: any }): { [key: string]: Ques
         } else if (question.subQuestions) {
             question.subQuestions = [];
         }
+        
+        // Sanitize numberedSentenceAnchors array
+        if (Array.isArray(question.numberedSentenceAnchors)) {
+            question.numberedSentenceAnchors = question.numberedSentenceAnchors.filter(Boolean);
+            question.numberedSentenceAnchors.forEach((anchor: any, index: number) => {
+                if (anchor && typeof anchor !== 'string') {
+                    console.warn(`Sanitizing non-string value for anchor text in question ${question.questionNumber}:`, anchor);
+                    question.numberedSentenceAnchors[index] = String(anchor);
+                }
+            });
+        } else if (question.numberedSentenceAnchors) {
+            question.numberedSentenceAnchors = [];
+        }
     });
 
     return data as { [key:string]: QuestionData };
@@ -650,57 +698,44 @@ const App = () => {
             setError("시험지 파일을 선택해주세요.");
             return;
         }
-    
+
         setIsLoading(true);
-        setIsProcessed(false);
         setError(null);
-        setAnalysisData(null);
+        setAnalysisData({}); // Clear old data
+        setIsProcessed(true); // Show preview panel immediately
         isCancelledRef.current = false;
         setExamTitle(examFile.name.replace(/\.[^/.]+$/, ""));
-    
+
         try {
-            const maxRetries = 3;
-            let lastError: Error | null = null;
-    
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                if (isCancelledRef.current) return;
-    
-                try {
-                    if (attempt > 0) {
-                        setLoadingMessage(`일시적인 오류가 발생하여 재시도합니다... (${attempt}/${maxRetries - 1})`);
-                        await sleep(Math.pow(2, attempt) * 1000); // Exponential backoff (2s, 4s)
-                        if (isCancelledRef.current) return;
-                    } else {
-                        setLoadingMessage('파일을 분석 중입니다... (최대 1분 소요)');
-                    }
-    
-                    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                    const examFileBase64 = await fileToBase64(examFile);
-                    const examPart = {
-                        inlineData: {
-                            mimeType: examFile.type,
-                            data: examFileBase64,
-                        },
-                    };
-    
-                    const solutionPart = solutionFile ? {
-                        inlineData: {
-                            mimeType: solutionFile.type,
-                            data: await fileToBase64(solutionFile),
-                        },
-                    } : null;
-    
-                    const basePrompt = `You are an expert AI assistant specializing in parsing English exam papers. Your primary goal is to visually reconstruct the provided exam questions into a structured JSON array. Adhere to the provided schema with extreme precision for the requested question numbers: ${selectedQuestions.join(', ')}. Your output MUST be a single, valid JSON array.
+            setLoadingMessage('AI와 연결 중입니다...');
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const examFileBase64 = await fileToBase64(examFile);
+            const examPart = {
+                inlineData: {
+                    mimeType: examFile.type,
+                    data: examFileBase64,
+                },
+            };
+
+            const solutionPart = solutionFile ? {
+                inlineData: {
+                    mimeType: solutionFile.type,
+                    data: await fileToBase64(solutionFile),
+                },
+            } : null;
+            
+            const basePrompt = `You are an expert AI assistant specializing in parsing English exam papers. Your primary goal is to visually reconstruct the provided exam questions into a structured JSON array. Adhere to the provided schema with extreme precision for the requested question numbers: ${selectedQuestions.join(', ')}. Your output MUST be a single, valid JSON array.
 
 **Core Directives:**
 1.  **Visual Fidelity:** Replicate the text and structure from the PDF exactly. This includes all prompts, passages, choices, boxed text, and starred vocabulary.
 2.  **Schema Adherence:** If a schema field is not applicable for a given question (e.g., 'choices' for Q29), its value in the JSON MUST be \`null\`. Crucially, for questions that have a text body (like 18-24), the 'passage' field MUST NOT be null.
-3.  **Content Integrity:** Do NOT duplicate content across different fields. For example, for questions 31-34, the passage should ONLY be in the 'passage' field.
+3.  **Content Integrity:** Do NOT duplicate content. The text provided for 'starredVocabulary' MUST NOT appear inside the 'passage' or 'mainTextAfterBox' fields. For questions 31-34, the passage should ONLY be in the 'passage' field.
 4.  **Translation Mandate:** For EVERY question parsed, the 'translation' field is MANDATORY. It MUST contain a complete and accurate Korean translation of the question's main content (passage, boxed text, etc.). Crucially, it MUST NOT include a translation of the instructional prompt (e.g., "다음 글의 목적으로 가장 적절한 것은?") or the multiple-choice options. The translation must be a cohesive, natural-sounding paragraph.
 5.  **Vocabulary Mandate:** For every question, provide a comprehensive list of at least 20 relevant vocabulary items. This is crucial for filling the layout space correctly.
 6.  **Choices Mandate:**
     - For questions WITH multiple-choice options (e.g., 18-28, 31-34, 40), you MUST populate the 'choices' array with all five options.
     - For questions WITHOUT multiple-choice options listed at the bottom (29, 30, 35, 38, 39), the 'choices' field MUST be \`null\`.
+7.  **Marker Integrity:** The \`__U__\` marker is reserved EXCLUSIVELY for questions 29 and 30 to denote grammatical underlining. It MUST NOT be used in the 'passage' or any other text field for any other question number. Its presence in other questions is a failure.
 
 **IMPORTANT Rule for Choices:**
 - When populating the \`choices\` array for ANY question, the \`text\` field for each choice object MUST contain ONLY the text of the option.
@@ -722,7 +757,7 @@ const App = () => {
   - The prompt (e.g., "다음 빈칸에 들어갈 말로 가장 적절한 것을 고르시오.") MUST go ONLY into the 'prompt' field. It MUST NOT contain any part of the passage, especially not the sentence with the blank.
   - The entire passage containing the blank MUST go ONLY into the 'passage' field. When representing the blank, use a moderately sized underscore line (e.g., \`________\`) to avoid creating large word gaps when justified.
   - The 'mainTextAfterBox' field MUST be \`null\`. Do NOT duplicate the passage content.
-  - **Translation:** The translation MUST be a complete Korean text with the correct answer filling the blank. The translated part corresponding to the answer MUST be wrapped in \`__ANSWER__\` markers. For example: \`...이 __ANSWER__새로운 발견__ANSWER__은 중요합니다.\`
+  - **Translation:** The translation MUST be a complete Korean text with the correct answer filling the blank. The translated part corresponding to the answer MUST be wrapped in \`__ANSWER__\` markers. Be extremely precise: only underline the core translated phrase, NOT any surrounding Korean particles (e.g., 은/는, 이/가, 을/를). For example, if the answer is "new discovery" and the translation is "새로운 발견은", the correct output is "__ANSWER__새로운 발견__ANSWER__은". Incorrect: "__ANSWER__새로운 발견은__ANSWER__".
 
 - **Questions 29, 30 (Grammar/Wording):**
   - **Absolute Precision Required:** Your analysis for these questions must be flawless. The underline must be placed on the exact word or grammatical phrase being tested, as shown in the source PDF. Misplacing the underline is a failure.
@@ -735,18 +770,29 @@ const App = () => {
   - **INCORRECT Example (Over-underlining):** "... began to __U__to wonder__U__ if..." (Incorrect because 'to' is part of the infinitive but not the word being tested for choice).
   - The 'choices' field MUST be \`null\`.
 
-- **Question 35 (Flow):**
-  - For question 35, combine the entire text, including any introductory sentence that might be in a box, into a single paragraph within the 'passage' field.
-  - The 'passage' text MUST include the numbered insertion markers (e.g., ①, ②). These markers should appear directly in the text WITHOUT any surrounding parentheses.
-  - The 'boxedText' field for question 35 MUST be \`null\`.
-  - The 'choices' field MUST be \`null\`.
-  - **Translation:** Provide a single, complete Korean paragraph. It is crucial that you DO NOT include numbered markers like ①, ②, etc. in the final translation.
+- **Question 35 (Flow / Irrelevant Sentence):**
+  - **CRITICAL RULE: This is the definitive method for 100% accuracy.** Your task is simple replacement. The application code will handle the final rendering.
+  - In the original passage from the PDF, you MUST find each numbered marker (①, ②, ③, ④, ⑤) and replace it with a unique placeholder tag.
+  - The replacement mapping is ABSOLUTE:
+    - ① becomes \`__MARKER_1__\`
+    - ② becomes \`__MARKER_2__\`
+    - ③ becomes \`__MARKER_3__\`
+    - ④ becomes \`__MARKER_4__\`
+    - ⑤ becomes \`__MARKER_5__\`
+  - The 'passage' field MUST contain the full text with these \`__MARKER_n__\` tags embedded in the exact locations of the original numbers.
+  - **Example:**
+    - Original Text Snippet: "...a theory. ① We don't notice this. ② This bending..."
+    - Correct 'passage' output: "...a theory. __MARKER_1__ We don't notice this. __MARKER_2__ This bending..."
+  - **Failure Condition:** Any deviation from this direct replacement is a failure. Do not alter surrounding text. Do not omit markers.
+  - The 'numberedSentenceAnchors' field is now obsolete and MUST be \`null\`.
+  - The 'boxedText' and 'choices' fields MUST also be \`null\`.
+  - **Translation Rule:** The 'translation' MUST be a single, complete Korean paragraph of the entire passage. It MUST NOT contain any numbered markers (①, ②, etc.), placeholder tags, OR the \`__ANSWER__\` marker. Using \`__ANSWER__\` is forbidden for question 35.
 
 - **Questions 38, 39 (Insertion):**
   - The initial sentence/paragraph (often in a box) MUST be extracted into the 'boxedText' field.
   - The main passage with insertion points (e.g., (①), (②)) MUST go into the 'passage' field. These numbered markers MUST be included in the text EXACTLY as they appear in the source.
   - The 'choices' field MUST be \`null\`.
-  - **Translation:** For the 'translation' field, provide a SINGLE, complete Korean paragraph. This paragraph MUST be the translation of the main passage with the boxed sentence correctly inserted. It is absolutely forbidden to include numbered markers like (①), (②) in the translation; any inclusion is a failure. The translated sentence corresponding to the 'boxedText' MUST be wrapped in \`__ANSWER__\` markers for underlining. Example: '... 문장입니다. __ANSWER__삽입될 문장의 번역__ANSWER__ 그리고 이어지는 문장...'
+  - **Translation:** For the 'translation' field, provide a SINGLE, complete Korean paragraph. This paragraph MUST be the translation of the main passage with the boxed sentence correctly inserted. The final translated paragraph MUST NOT contain any of the numbered insertion markers like (①), (②), etc. It is absolutely forbidden to include them, and their presence is a failure. The translated sentence corresponding to the 'boxedText' MUST be wrapped in \`__ANSWER__\` markers for underlining. Example: '... 문장입니다. __ANSWER__삽입될 문장의 번역__ANSWER__ 그리고 이어지는 문장...'
 
 - **Questions 36, 37 (Sequencing):**
   - The initial sentence/paragraph MUST be extracted into the 'boxedText' field.
@@ -778,140 +824,156 @@ const App = () => {
     - \`answer\`: The correct answer number (e.g., "③") for question 42.
   - The top-level \`prompt\`, \`choices\`, and \`answer\` fields for the "41-42" object MUST be \`null\`.
 `;
+            
+            const contents = {
+                parts: [
+                    { text: basePrompt },
+                    examPart,
+                    ...(solutionPart ? [{ text: "\nHere is the solution sheet:" }, solutionPart] : [])
+                ]
+            };
+            
+            const responseSchema = {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        questionNumber: { type: Type.STRING },
+                        prompt: { type: Type.STRING, nullable: true },
+                        passage: { type: Type.STRING, nullable: true },
+                        choices: {
+                            type: Type.ARRAY,
+                            nullable: true,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: { text: { type: Type.STRING } },
+                                required: ['text'],
+                            }
+                        },
+                        answer: { type: Type.STRING, nullable: true },
+                        translation: { type: Type.STRING },
+                        vocabulary: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    word: { type: Type.STRING },
+                                    meaning: { type: Type.STRING }
+                                },
+                                required: ['word', 'meaning'],
+                            }
+                        },
+                        promptEnglishPart: { type: Type.STRING, nullable: true },
+                        starredVocabulary: { type: Type.STRING, nullable: true },
+                        underlinedText: { type: Type.STRING, nullable: true },
+                        boxedText: { type: Type.STRING, nullable: true },
+                        mainTextAfterBox: { type: Type.STRING, nullable: true },
+                        summaryPrompt: { type: Type.STRING, nullable: true },
+                        summaryBoxText: { type: Type.STRING, nullable: true },
+                        numberedSentenceAnchors: {
+                            type: Type.ARRAY,
+                            nullable: true,
+                            items: { type: Type.STRING }
+                        },
+                        subQuestions: {
+                            type: Type.ARRAY,
+                            nullable: true,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    questionNumber: { type: Type.STRING },
+                                    prompt: { type: Type.STRING },
+                                    choices: {
+                                        type: Type.ARRAY,
+                                        items: {
+                                            type: Type.OBJECT,
+                                            properties: { text: { type: Type.STRING } },
+                                            required: ['text']
+                                        }
+                                    },
+                                    answer: { type: Type.STRING }
+                                },
+                                required: ['questionNumber', 'prompt', 'choices', 'answer']
+                            }
+                        },
+                    },
+                    required: ['questionNumber', 'translation', 'vocabulary'],
+                }
+            };
     
-                    const contents = {
-                        parts: [
-                            { text: basePrompt },
-                            examPart,
-                            ...(solutionPart ? [{ text: "\nHere is the solution sheet:" }, solutionPart] : [])
-                        ]
-                    };
+            setLoadingMessage('AI가 해설을 생성하고 있습니다...');
+            const response = await ai.models.generateContentStream({
+                model: 'gemini-2.5-flash',
+                contents: contents,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema,
+                }
+            });
+
+            let buffer = '';
+            let hasReceivedData = false;
+
+            for await (const chunk of response) {
+                if (isCancelledRef.current) break;
+                if (!chunk.text) continue;
+                buffer += chunk.text;
+                
+                let objectStartIndex = -1;
+                
+                // Keep trying to extract complete JSON objects from the buffer
+                while ((objectStartIndex = buffer.indexOf('{')) !== -1) {
+                    let braceCount = 1;
+                    let potentialObjectEnd = -1;
                     
-                    const responseSchema = {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                questionNumber: { type: Type.STRING },
-                                prompt: { type: Type.STRING, nullable: true },
-                                passage: { type: Type.STRING, nullable: true },
-                                choices: {
-                                    type: Type.ARRAY,
-                                    nullable: true,
-                                    items: {
-                                        type: Type.OBJECT,
-                                        properties: { text: { type: Type.STRING } },
-                                        required: ['text'],
-                                    }
-                                },
-                                answer: { type: Type.STRING, nullable: true },
-                                translation: { type: Type.STRING },
-                                vocabulary: {
-                                    type: Type.ARRAY,
-                                    items: {
-                                        type: Type.OBJECT,
-                                        properties: {
-                                            word: { type: Type.STRING },
-                                            meaning: { type: Type.STRING }
-                                        },
-                                        required: ['word', 'meaning'],
-                                    }
-                                },
-                                promptEnglishPart: { type: Type.STRING, nullable: true },
-                                starredVocabulary: { type: Type.STRING, nullable: true },
-                                underlinedText: { type: Type.STRING, nullable: true },
-                                boxedText: { type: Type.STRING, nullable: true },
-                                mainTextAfterBox: { type: Type.STRING, nullable: true },
-                                summaryPrompt: { type: Type.STRING, nullable: true },
-                                summaryBoxText: { type: Type.STRING, nullable: true },
-                                subQuestions: {
-                                    type: Type.ARRAY,
-                                    nullable: true,
-                                    items: {
-                                        type: Type.OBJECT,
-                                        properties: {
-                                            questionNumber: { type: Type.STRING },
-                                            prompt: { type: Type.STRING },
-                                            choices: {
-                                                type: Type.ARRAY,
-                                                items: {
-                                                    type: Type.OBJECT,
-                                                    properties: { text: { type: Type.STRING } },
-                                                    required: ['text']
-                                                }
-                                            },
-                                            answer: { type: Type.STRING }
-                                        },
-                                        required: ['questionNumber', 'prompt', 'choices', 'answer']
-                                    }
-                                },
-                            },
-                            required: ['questionNumber', 'translation', 'vocabulary'],
+                    // Scan for the matching closing brace
+                    for (let i = objectStartIndex + 1; i < buffer.length; i++) {
+                        if (buffer[i] === '{') {
+                            braceCount++;
+                        } else if (buffer[i] === '}') {
+                            braceCount--;
                         }
-                    };
-    
-                    setLoadingMessage('AI가 분석 중입니다... (1/2)');
-                    const response = await ai.models.generateContent({
-                        model: 'gemini-2.5-flash',
-                        contents: contents,
-                        config: {
-                            responseMimeType: "application/json",
-                            responseSchema: responseSchema,
+                        
+                        if (braceCount === 0) {
+                            potentialObjectEnd = i;
+                            break;
                         }
-                    });
-    
-                    if (isCancelledRef.current) return;
-    
-                    setLoadingMessage('결과를 처리 중입니다... (2/2)');
-                    let jsonText = response.text.trim();
-                     // Handle potential markdown fences
-                    if (jsonText.startsWith('```json')) {
-                        jsonText = jsonText.slice(7, -3).trim();
-                    } else if (jsonText.startsWith('```')) {
-                        jsonText = jsonText.slice(3, -3).trim();
                     }
                     
-                    const parsedArray = JSON.parse(jsonText);
-
-                    if (!Array.isArray(parsedArray) || parsedArray.length === 0) {
-                         throw new Error("AI가 파일에서 유효한 문제 정보를 추출하지 못했습니다. 파일이 선명한지, 선택한 문항이 파일에 포함되어 있는지 확인 후 다시 시도해주세요.");
-                    }
-
-                    // Convert array to the object structure the app expects { '18': {...}, '19': {...} }
-                    const parsedData = parsedArray.reduce((acc, question) => {
-                        if (question && question.questionNumber) {
-                            acc[question.questionNumber] = question;
+                    // If a complete object was found in the buffer
+                    if (potentialObjectEnd !== -1) {
+                        const objectString = buffer.substring(objectStartIndex, potentialObjectEnd + 1);
+                        
+                        try {
+                            const question = JSON.parse(objectString) as QuestionData;
+                            if (question && question.questionNumber) {
+                                const sanitized = sanitizeAIResponse({ [question.questionNumber]: question });
+                                setAnalysisData(prev => ({ ...prev, ...sanitized }));
+                                hasReceivedData = true;
+                            }
+                        } catch (e) {
+                            console.error("스트리밍 JSON 객체 파싱 오류:", e, objectString);
                         }
-                        return acc;
-                    }, {} as { [key: string]: QuestionData });
-
-
-                    const sanitizedData = sanitizeAIResponse(parsedData);
-    
-                    if (!sanitizedData || Object.keys(sanitizedData).length === 0) {
-                        throw new Error("AI가 파일에서 유효한 문제 정보를 추출하지 못했습니다. 파일이 선명한지, 선택한 문항이 파일에 포함되어 있는지 확인 후 다시 시도해주세요.");
+                        
+                        // Slice the buffer to remove the processed object and any text before it
+                        buffer = buffer.substring(potentialObjectEnd + 1);
+                    } else {
+                        // The object in the buffer is incomplete, break the inner loop and wait for the next chunk
+                        break;
                     }
-    
-                    setAnalysisData(sanitizedData);
-                    setIsProcessed(true);
-    
-                    // Success! Exit the function.
-                    return;
-    
-                } catch (err) {
-                    console.error(`Attempt ${attempt + 1} failed:`, err);
-                    lastError = err as Error;
                 }
             }
-    
-            if (lastError) {
-                throw lastError;
+
+
+            if (!isCancelledRef.current && !hasReceivedData) {
+                throw new Error("AI가 유효한 데이터를 반환하지 않았습니다. 스트림이 비어있거나 형식이 잘못되었을 수 있습니다.");
             }
-    
+
         } catch (err) {
             console.error(err);
             const errorMessage = (err as Error).message || 'An unknown error occurred.';
-            setError(`분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n\n오류 상세: ${errorMessage}`);
+            setError(`해설지 생성 중 오류가 발생했습니다. 네트워크 연결을 확인하거나, 잠시 후 다시 시도해주세요. 문제가 지속되면 다른 파일을 사용해 보세요.\n\n오류 상세: ${errorMessage}`);
+            setIsProcessed(false); // Hide preview on error
         } finally {
             setIsLoading(false);
             setLoadingMessage('파일을 분석 중입니다... (최대 1분 소요)');
@@ -953,7 +1015,7 @@ const App = () => {
     };
     
     const handleDownload = async () => {
-        if (!previewRef.current || selectedQuestions.length === 0) return;
+        if (!previewRef.current || !analysisData || Object.keys(analysisData).length === 0) return;
     
         const originalTitle = document.title;
         const filename = `${examTitle}_해설지.pdf`;
@@ -1084,16 +1146,16 @@ const App = () => {
                         </div>
                     )}
                     
-                    {isProcessed && (
+                    {isProcessed && !isLoading && analysisData && Object.keys(analysisData).length > 0 && (
                         <div className="action-buttons">
-                             <button className="btn-primary" onClick={handleDownload} disabled={selectedQuestions.length === 0}>
+                             <button className="btn-primary" onClick={handleDownload}>
                                 PDF로 다운로드
                             </button>
                         </div>
                     )}
                 </aside>
                 <main className="preview-panel">
-                     {!isProcessed ? (
+                     {(!isProcessed || !analysisData || Object.keys(analysisData).length === 0) && !isLoading ? (
                         <div className="preview-placeholder">
                             <p>오른쪽에서 설정을 완료하고 '해설지 생성' 버튼을 누르면 여기에 결과가 표시됩니다.</p>
                         </div>
