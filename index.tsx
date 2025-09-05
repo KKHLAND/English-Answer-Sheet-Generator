@@ -57,7 +57,7 @@ const DropZone: React.FC<DropZoneProps> = ({ onFileDrop, file, title, disabled =
             onFileDrop(files[0]);
         }
     };
-    
+
     // FIX: Add type to event object to resolve TS errors.
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -138,11 +138,11 @@ interface QuestionData {
     mainTextAfterBox?: string | null;
     summaryPrompt?: string | null;
     summaryBoxText?: string | null;
+    numberedSentenceAnchors?: string[] | null;
     answer: string;
     translation: string;
     vocabulary: VocabularyItem[];
     subQuestions?: SubQuestion[];
-    numberedSentenceAnchors?: string[] | null; // For Q35's precise marker placement
 }
 
 
@@ -184,7 +184,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
 
     const renderPassage = () => {
         if (!data.passage) return null;
-    
+
         let passageContent: any = data.passage;
 
         // FIX: Proactively remove any mistaken __U__ markers from questions other than 29 and 30.
@@ -192,7 +192,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
         if (data.questionNumber !== '29' && data.questionNumber !== '30' && typeof passageContent === 'string') {
             passageContent = passageContent.replace(/__U__/g, '');
         }
-    
+
         // Clean up duplicated vocab from passage to prevent rendering errors.
         if (data.starredVocabulary && typeof passageContent === 'string') {
             passageContent = passageContent.replace(data.starredVocabulary, '').trim();
@@ -217,10 +217,10 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
             // Delimiter: (a circled number, optional space, __U__, content, __U__)
             const regex = /((?:①|②|③|④|⑤)\s*__U__.*?__U__)/g;
             const parts = passageContent.split(regex);
-        
+
             // This regex extracts the marker and content from a delimiter part.
             const subRegex = /(①|②|③|④|⑤)\s*__U__(.*?)__U__/;
-        
+
             passageContent = (
                 <>
                     {parts.map((part, index) => {
@@ -266,7 +266,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
                 contentWithMarkers = contentWithMarkers.flatMap(segment =>
                     typeof segment === 'string' && segment.includes(markerTag)
                         ? segment.split(markerTag).flatMap((part, j, arr) =>
-                            j < arr.length - 1 ? [part, <React.Fragment key={`${i}-${j}`}>{markers[i]}</React.Fragment>] : [part]
+                            j < arr.length - 1 ? [part, <span className="sentence-marker" key={`${i}-${j}`}>{markers[i]}</span>] : [part]
                         )
                         : [segment]
                 );
@@ -281,7 +281,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
             if (passageContent.includes(cleanUnderlinedText)) {
                 const parts = passageContent.split(cleanUnderlinedText);
                 let firstPart = parts[0];
-                
+
                 if (data.questionNumber === '21') {
                     // Make regex more robust by making colon optional.
                     firstPart = firstPart.replace(/underlinedText\s*:?\s*$/, '');
@@ -293,10 +293,10 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
                 );
             }
         }
-    
+
         return <div className="question-passage">{passageContent}</div>;
     };
-    
+
 
     const renderStarredVocabulary = () => {
         if (!data.starredVocabulary) return null;
@@ -307,11 +307,12 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
             .join('\n');
         return <pre className="starred-vocabulary">{vocabWithStars}</pre>;
     };
-    
+
     const renderMainTextAfterBox = () => {
         if (!data.mainTextAfterBox || ['31', '32', '33', '34'].includes(data.questionNumber)) return null;
 
         let text = data.mainTextAfterBox;
+        // Clean up duplicated vocab from passage for Q36/37 before rendering.
         // Clean up duplicated vocab from main text for ALL questions before rendering.
         if (data.starredVocabulary) {
             text = text.replace(data.starredVocabulary, '').trim();
@@ -407,7 +408,7 @@ const FormattedQuestion: React.FC<FormattedQuestionProps> = ({ data }) => {
         <div className="question-text-container">
             {renderPrompt()}
             {data.boxedText && <div className="boxed-text">{data.boxedText}</div>}
-            
+
             {/* Conditional rendering for Q36/37 vocab placement */}
             {['36', '37'].includes(data.questionNumber) ? (
                 <>
@@ -453,7 +454,7 @@ const AnalysisSheet: React.FC<AnalysisSheetProps> = ({ title, questionData, logo
         if (!translation) return null;
     
         // Define which questions are allowed to have underlining in their translation.
-        const allowedUnderlineQuestions = ['31', '32', '33', '34', '38', '39', '40', '41-42'];
+        const allowedUnderlineQuestions = ['31', '32', '33', '34', '35', '38', '39', '40', '41-42'];
     
         if (allowedUnderlineQuestions.includes(questionNumber)) {
             if (translation.includes('__ANSWER__')) {
@@ -469,6 +470,23 @@ const AnalysisSheet: React.FC<AnalysisSheetProps> = ({ title, questionData, logo
                             // The text before and after the markers is at even indices.
                             return part;
                         })}
+                    </>
+                );
+            }
+             // For Q35, special rendering logic for the disconnected sentence.
+            if (questionNumber === '35' && translation.includes('[흐름과 관계 없는 문장]')) {
+                const parts = translation.split('[흐름과 관계 없는 문장]');
+                const mainFlow = parts[0];
+                const disconnectedSentence = parts[1];
+                
+                return (
+                    <>
+                        {mainFlow}
+                        {disconnectedSentence && (
+                             <p style={{ marginTop: '1em' }}>
+                                <strong>[흐름과 관계 없는 문장]</strong>{disconnectedSentence}
+                             </p>
+                        )}
                     </>
                 );
             }
@@ -502,7 +520,7 @@ const AnalysisSheet: React.FC<AnalysisSheetProps> = ({ title, questionData, logo
         // Default for standard questions (21-24)
         return 25;
     };
-    
+
     const vocabLimit = getVocabLimit(questionData.questionNumber);
 
     return (
@@ -614,7 +632,7 @@ function sanitizeAIResponse(data: { [key: string]: any }): { [key: string]: Ques
              console.warn(`Sanitizing non-array value for 'vocabulary' in question ${question.questionNumber}:`, question.vocabulary);
              question.vocabulary = []; // Reset to a safe value
         }
-        
+
         // Sanitize subQuestions array
         if (Array.isArray(question.subQuestions)) {
             question.subQuestions = question.subQuestions.filter(Boolean);
@@ -644,18 +662,19 @@ function sanitizeAIResponse(data: { [key: string]: any }): { [key: string]: Ques
         } else if (question.subQuestions) {
             question.subQuestions = [];
         }
-        
+
         // Sanitize numberedSentenceAnchors array
         if (Array.isArray(question.numberedSentenceAnchors)) {
-            question.numberedSentenceAnchors = question.numberedSentenceAnchors.filter(Boolean);
+            question.numberedSentenceAnchors = question.numberedSentenceAnchors.filter(Boolean); // Remove null/undefined items
             question.numberedSentenceAnchors.forEach((anchor: any, index: number) => {
-                if (anchor && typeof anchor !== 'string') {
-                    console.warn(`Sanitizing non-string value for anchor text in question ${question.questionNumber}:`, anchor);
+                if (typeof anchor !== 'string') {
+                    console.warn(`Sanitizing non-string value for numberedSentenceAnchors at index ${index} in question ${question.questionNumber}:`, anchor);
                     question.numberedSentenceAnchors[index] = String(anchor);
                 }
             });
         } else if (question.numberedSentenceAnchors) {
-            question.numberedSentenceAnchors = [];
+            console.warn(`Sanitizing non-array value for 'numberedSentenceAnchors' in question ${question.questionNumber}:`, question.numberedSentenceAnchors);
+            question.numberedSentenceAnchors = []; // Reset to a safe value
         }
     });
 
@@ -677,7 +696,7 @@ const App = () => {
     // FIX: type useRef for preview element.
     const previewRef = useRef<HTMLDivElement>(null);
     const isCancelledRef = useRef(false);
-    
+
     const allowedQuestions = useMemo(() => ['18', '19', '20', '21', '22', '23', '24', '26', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41-42'], []);
 
     // Effect to convert logoFile to a data URL for stable PDF generation
@@ -698,14 +717,15 @@ const App = () => {
             setError("시험지 파일을 선택해주세요.");
             return;
         }
-
+    
         setIsLoading(true);
+        setIsProcessed(false);
         setError(null);
+        setAnalysisData(null);
         setAnalysisData({}); // Clear old data
-        setIsProcessed(true); // Show preview panel immediately
         isCancelledRef.current = false;
         setExamTitle(examFile.name.replace(/\.[^/.]+$/, ""));
-
+    
         try {
             setLoadingMessage('AI와 연결 중입니다...');
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -736,6 +756,13 @@ const App = () => {
     - For questions WITH multiple-choice options (e.g., 18-28, 31-34, 40), you MUST populate the 'choices' array with all five options.
     - For questions WITHOUT multiple-choice options listed at the bottom (29, 30, 35, 38, 39), the 'choices' field MUST be \`null\`.
 7.  **Marker Integrity:** The \`__U__\` marker is reserved EXCLUSIVELY for questions 29 and 30 to denote grammatical underlining. It MUST NOT be used in the 'passage' or any other text field for any other question number. Its presence in other questions is a failure.
+8.  **Starred Vocabulary Rule (*, **, ***):**
+    - For any question with a vocabulary list at the bottom of the passage marked with asterisks (e.g., "* perplexed: ..."), you MUST extract only the vocabulary definitions.
+    - Place this text into the 'starredVocabulary' field as a single string, with each definition on a new line.
+    - **CRITICAL:** Do NOT include the asterisks (*, **, ***) in the string. The application adds them programmatically.
+    - **CRITICAL:** This entire vocabulary block (including stars) MUST be removed from the 'passage' and 'mainTextAfterBox' fields to prevent duplication.
+    - **Example:** If the passage has "* perplexed: 당혹한", the 'starredVocabulary' field should be "perplexed: 당혹한".
+    - If no such list exists, this field MUST be \`null\`.
 
 **IMPORTANT Rule for Choices:**
 - When populating the \`choices\` array for ANY question, the \`text\` field for each choice object MUST contain ONLY the text of the option.
@@ -771,22 +798,17 @@ const App = () => {
   - The 'choices' field MUST be \`null\`.
 
 - **Question 35 (Flow / Irrelevant Sentence):**
-  - **CRITICAL RULE: This is the definitive method for 100% accuracy.** Your task is simple replacement. The application code will handle the final rendering.
-  - In the original passage from the PDF, you MUST find each numbered marker (①, ②, ③, ④, ⑤) and replace it with a unique placeholder tag.
-  - The replacement mapping is ABSOLUTE:
-    - ① becomes \`__MARKER_1__\`
-    - ② becomes \`__MARKER_2__\`
-    - ③ becomes \`__MARKER_3__\`
-    - ④ becomes \`__MARKER_4__\`
-    - ⑤ becomes \`__MARKER_5__\`
-  - The 'passage' field MUST contain the full text with these \`__MARKER_n__\` tags embedded in the exact locations of the original numbers.
-  - **Example:**
-    - Original Text Snippet: "...a theory. ① We don't notice this. ② This bending..."
-    - Correct 'passage' output: "...a theory. __MARKER_1__ We don't notice this. __MARKER_2__ This bending..."
-  - **Failure Condition:** Any deviation from this direct replacement is a failure. Do not alter surrounding text. Do not omit markers.
-  - The 'numberedSentenceAnchors' field is now obsolete and MUST be \`null\`.
-  - The 'boxedText' and 'choices' fields MUST also be \`null\`.
-  - **Translation Rule:** The 'translation' MUST be a single, complete Korean paragraph of the entire passage. It MUST NOT contain any numbered markers (①, ②, etc.), placeholder tags, OR the \`__ANSWER__\` marker. Using \`__ANSWER__\` is forbidden for question 35.
+  - **CRITICAL RULE FOR ACCURACY:** To ensure 100% accuracy, you MUST perform a direct replacement. Find the exact locations of the numbered markers (①, ②, ③, ④, ⑤) in the original passage.
+  - In the \`passage\` field, you MUST remove the original number marker (e.g., "①") and, in its exact place, insert the corresponding placeholder tag (e.g., \`__MARKER_1__\`).
+  - **Example:** If the original text is \`... a theory. ① We don't notice ...\`, the correct \`passage\` output is \`... a theory. __MARKER_1__We don't notice ...\`.
+  - This find-and-replace operation is mandatory for all five markers. Do not attempt to guess sentence beginnings; rely only on the markers present in the source.
+  - The 'boxedText', 'choices', and 'numberedSentenceAnchors' fields MUST be \`null\`.
+  - **Translation & Answer Rule:**
+    - **MANDATORY:** You MUST use the provided answer key to identify the correct answer number.
+    - The 'translation' MUST present the passage's full Korean translation in a specific format for educational clarity.
+    - **Part 1:** First, provide a translation of the passage with the irrelevant sentence (the answer) REMOVED. This demonstrates the correct logical flow. To highlight this flow, you MUST wrap the Korean translations of the sentence BEFORE the removed one and the sentence AFTER the removed one in \`__ANSWER__\` tags.
+    - **Part 2:** After the main flow translation, add a newline and then the text \`[흐름과 관계 없는 문장]\` followed by the Korean translation of the irrelevant sentence.
+    - **Example:** If the answer is ③, the translation should look like: "...(①번 문장 번역)... __ANSWER__②번 문장 번역__ANSWER__ __ANSWER__④번 문장 번역__ANSWER__ ...(⑤번 문장 번역)...\\n[흐름과 관계 없는 문장] ③번 문장 번역"
 
 - **Questions 38, 39 (Insertion):**
   - The initial sentence/paragraph (often in a box) MUST be extracted into the 'boxedText' field.
@@ -811,7 +833,8 @@ const App = () => {
   - The \`questionNumber\` field MUST be "41-42".
   - The shared long passage MUST go into the \`passage\` field.
   - The \`subQuestions\` field MUST contain an array of two objects, one for question 41 and one for question 42.
-  - **Translation & Vocabulary:** The 'translation' and 'vocabulary' fields must be for the entire shared passage. The translation MUST be a complete Korean translation of the entire passage. A partial translation is a failure. Within this complete translation, you MUST find the Korean words that correspond to the underlined English words marked (a) through (e) in the passage (which are relevant to question 42) and wrap each of these five Korean words/phrases with \`__ANSWER__\` markers for underlining.
+  - **CRITICAL Translation Rule:** The 'translation' field MUST be a complete Korean translation of the entire passage. It is MANDATORY to use the provided answer for question 42 to produce the final translation. Find the incorrect word (e.g., the word corresponding to choice ③) and translate it using the **CORRECT** contextual meaning, NOT the incorrect one from the passage. You MUST find the Korean words/phrases that correspond to all five underlined English words marked (a) through (e) and wrap each of these five Korean translations with \`__ANSWER__\` markers for underlining.
+  - **Example:** If (c) is "decrease" and the answer is ③, but the context requires "increase", the translation must reflect "증가" and the word "증가" must be underlined.
   - **For sub-question 41:**
     - \`questionNumber\`: "41"
     - \`prompt\`: The prompt for question 41 (e.g., "윗글의 제목으로 가장 적절한 것은?").
@@ -870,11 +893,6 @@ const App = () => {
                         mainTextAfterBox: { type: Type.STRING, nullable: true },
                         summaryPrompt: { type: Type.STRING, nullable: true },
                         summaryBoxText: { type: Type.STRING, nullable: true },
-                        numberedSentenceAnchors: {
-                            type: Type.ARRAY,
-                            nullable: true,
-                            items: { type: Type.STRING }
-                        },
                         subQuestions: {
                             type: Type.ARRAY,
                             nullable: true,
@@ -896,11 +914,18 @@ const App = () => {
                                 required: ['questionNumber', 'prompt', 'choices', 'answer']
                             }
                         },
+                        numberedSentenceAnchors: {
+                            type: Type.ARRAY,
+                            nullable: true,
+                            items: {
+                                type: Type.STRING
+                            }
+                        },
                     },
                     required: ['questionNumber', 'translation', 'vocabulary'],
                 }
             };
-    
+
             setLoadingMessage('AI가 해설을 생성하고 있습니다...');
             const response = await ai.models.generateContentStream({
                 model: 'gemini-2.5-flash',
@@ -939,7 +964,7 @@ const App = () => {
                             break;
                         }
                     }
-                    
+    
                     // If a complete object was found in the buffer
                     if (potentialObjectEnd !== -1) {
                         const objectString = buffer.substring(objectStartIndex, potentialObjectEnd + 1);
@@ -964,22 +989,22 @@ const App = () => {
                 }
             }
 
-
             if (!isCancelledRef.current && !hasReceivedData) {
                 throw new Error("AI가 유효한 데이터를 반환하지 않았습니다. 스트림이 비어있거나 형식이 잘못되었을 수 있습니다.");
             }
+            
+            setIsProcessed(true);
 
         } catch (err) {
             console.error(err);
             const errorMessage = (err as Error).message || 'An unknown error occurred.';
             setError(`해설지 생성 중 오류가 발생했습니다. 네트워크 연결을 확인하거나, 잠시 후 다시 시도해주세요. 문제가 지속되면 다른 파일을 사용해 보세요.\n\n오류 상세: ${errorMessage}`);
-            setIsProcessed(false); // Hide preview on error
         } finally {
             setIsLoading(false);
             setLoadingMessage('파일을 분석 중입니다... (최대 1분 소요)');
         }
     };
-    
+
     const handleFileDrop = (setter: React.Dispatch<React.SetStateAction<File | null>>) => (file: File) => {
         const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
         if (!allowedTypes.includes(file.type)) {
@@ -993,7 +1018,7 @@ const App = () => {
             setError(`파일 크기는 ${MAX_FILE_SIZE_MB}MB를 초과할 수 없습니다. 더 작은 파일을 업로드해주세요.`);
             return;
         }
-        
+
         setError(null);
         setter(file);
     };
@@ -1005,7 +1030,7 @@ const App = () => {
     const handleClearAll = () => {
         setSelectedQuestions([]);
     };
-    
+
     const handleGenerateClick = () => {
         if (examFile) {
             generateAnalysis(examFile, solutionFile);
@@ -1013,14 +1038,14 @@ const App = () => {
             setError("시험지 파일을 업로드해주세요.");
         }
     };
-    
+
     const handleDownload = async () => {
         if (!previewRef.current || !analysisData || Object.keys(analysisData).length === 0) return;
-    
+
         const originalTitle = document.title;
         const filename = `${examTitle}_해설지.pdf`;
         document.title = filename;
-    
+
         const overlay = document.createElement('div');
         overlay.id = 'pdf-loader-overlay';
         overlay.innerHTML = `
@@ -1030,7 +1055,7 @@ const App = () => {
             </div>`;
         document.body.appendChild(overlay);
         const progressText = document.getElementById('pdf-progress-text');
-    
+
         try {
             const pdf = new jsPDF({
                 orientation: 'portrait',
@@ -1039,9 +1064,9 @@ const App = () => {
             });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-    
+
             const sheets = Array.from(previewRef.current.querySelectorAll('.analysis-sheet'));
-            
+
             for (let i = 0; i < sheets.length; i++) {
                 if (progressText) {
                     progressText.textContent = `PDF 생성 중... (${i + 1}/${sheets.length} 페이지)`;
@@ -1055,17 +1080,17 @@ const App = () => {
                     allowTaint: true,
                     backgroundColor: '#ffffff',
                 });
-    
+
                 const imgData = canvas.toDataURL('image/jpeg', 0.98);
-    
+
                 if (i > 0) {
                     pdf.addPage();
                 }
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
             }
-    
+
             pdf.save(filename);
-    
+
         } catch (e) {
             console.error("PDF generation failed:", e);
             setError(`PDF 생성 중 오류가 발생했습니다: ${(e as Error).message}`);
@@ -1076,7 +1101,7 @@ const App = () => {
             document.title = originalTitle;
         }
     };
-    
+
     const handleStop = () => {
         isCancelledRef.current = true;
         setIsLoading(false);
@@ -1103,9 +1128,9 @@ const App = () => {
                     <DropZone onFileDrop={handleFileDrop(setExamFile)} file={examFile} title="1. 시험지 업로드" disabled={isLoading} />
                     <DropZone onFileDrop={handleFileDrop(setSolutionFile)} file={solutionFile} title="2. 정답지 업로드 (선택 사항)" disabled={isLoading} />
                     <DropZone onFileDrop={handleFileDrop(setLogoFile)} file={logoFile} title="3. 로고 업로드 (선택 사항)" disabled={isLoading} />
-                    
+
                     {error && <div className="error-message">{error}</div>}
-                    
+
                     <div className="options-section">
                         <div className="option-item">
                             <label htmlFor="question-select">4. 문항 선택</label>
@@ -1145,7 +1170,7 @@ const App = () => {
                             <button onClick={handleStop} className="btn-stop">중지</button>
                         </div>
                     )}
-                    
+
                     {isProcessed && !isLoading && analysisData && Object.keys(analysisData).length > 0 && (
                         <div className="action-buttons">
                              <button className="btn-primary" onClick={handleDownload}>
@@ -1155,20 +1180,27 @@ const App = () => {
                     )}
                 </aside>
                 <main className="preview-panel">
-                     {(!isProcessed || !analysisData || Object.keys(analysisData).length === 0) && !isLoading ? (
+                    {isLoading ? (
                         <div className="preview-placeholder">
-                            <p>오른쪽에서 설정을 완료하고 '해설지 생성' 버튼을 누르면 여기에 결과가 표시됩니다.</p>
+                            <div className="loader-content">
+                                <div className="spinner"></div>
+                                <span>{loadingMessage}</span>
+                            </div>
                         </div>
-                    ) : (
+                    ) : sortedAnalysisData.length > 0 ? (
                         <div id="preview-content" ref={previewRef}>
                             {sortedAnalysisData.map(data => (
-                                <AnalysisSheet 
+                                <AnalysisSheet
                                     key={data.questionNumber}
                                     title={examTitle}
-                                    questionData={data} 
+                                    questionData={data}
                                     logoDataUrl={logoDataUrl}
                                 />
                             ))}
+                        </div>
+                    ) : (
+                        <div className="preview-placeholder">
+                            <p>오른쪽에서 설정을 완료하고 '해설지 생성' 버튼을 누르면 여기에 결과가 표시됩니다.</p>
                         </div>
                     )}
                 </main>

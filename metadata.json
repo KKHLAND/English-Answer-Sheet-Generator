@@ -1,5 +1,26 @@
 {
   "name": "AI 영어 모의고사 해설지 생성기",
-  "description": "영어 모의고사 시험지를 PDF 파일로 업로드하여 특정 문항의 맞춤형 분석 자료를 만드세요.",
-  "requestFramePermissions": []
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "html2pdf.js": "^0.12.0",
+    "jspdf": "^2.5.1",
+    "html2canvas": "^1.4.1",
+    "@google/genai": "^1.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  },
+  "requestFramePermissions": [],
+  "description": "영어 모의고사 PDF를 업로드하여 문항 별 맞춤 해설지를 만들어보세요."
 }

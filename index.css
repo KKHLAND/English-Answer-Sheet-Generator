@@ -359,8 +359,10 @@ button:disabled {
 }
 
 .answer-blank {
+    display: inline-block;
     display: inline-block; /* Prevents the blank space from breaking across lines for better PDF rendering. */
     border-bottom: 1.2px solid black;
+    vertical-align: -0.1em; /* Adjust to align with text baseline */
     vertical-align: -0.2em; /* Adjust for better visual alignment with inline text. */
     margin: 0 0.1em;
     /* Add a max-width to prevent very long blanks from disrupting the justified text alignment, */
@@ -499,6 +501,11 @@ button:disabled {
     text-justify: inter-word;
 }
 
+.sentence-marker {
+    display: inline-block;
+    margin-right: 0.3em;
+}
+
 .sub-questions-container {
     margin-top: 1.5rem;
     border-top: 1px solid #eee;
@@ -613,9 +620,10 @@ button:disabled {
 
 /* Custom underline style for consistent PDF rendering */
 .custom-underline {
-    border-bottom: 1.2px solid black;
-    padding-bottom: 1px; /* Adjust spacing between text and line */
-    text-decoration: none;
+    text-decoration: underline;
+    text-decoration-color: black;
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 2px;
 }
 
 .preview-footer {
